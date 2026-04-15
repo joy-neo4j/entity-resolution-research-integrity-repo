@@ -1,49 +1,100 @@
-# Entity Resolution for Research Integrity (Local Neo4j Repo)
+# Entity Resolution for Research Integrity
 
-This repository packages the model and examples from `Entity_Resolution_Research_Integrity.md` into a local, runnable format.
+This repository packages the model and examples from `Entity_Resolution_Research_Integrity.md` into a runnable setup with two supported execution paths:
 
-## What is included
+1. Local Neo4j via Docker
+2. Aura-first workflow: load data into AuraDB, then run GDS on either AuraDB Serverless Graph Analytics or AuraDS
 
-- `cypher/` ordered Cypher scripts for schema, sample graph, ER logic, GDS workflows, and analyst queries
-- `data/` sample CSV files (researchers, institutions, papers, patents, drugs, targets, and relationships)
-- `docker-compose.yml` for a local Neo4j instance with APOC and GDS
-- `scripts/load_all.cypher` one-shot script to load CSV and run setup
+## Repository Contents
 
-## Quick start
+- `cypher/`: ordered Cypher scripts for schema, sample graph, ER logic, GDS workflows, and analyst queries
+- `data/`: sample CSV files
+- `scripts/load_all.cypher`: local `file:///` CSV loader (for local Docker Neo4j only)
+- `scripts/load_data_to_auradb.py`: Aura-safe loader from local CSVs to AuraDB (driver-based)
+- `scripts/run_cypher_file.py`: run any `.cypher` file against AuraDB or AuraDS
+- `scripts/run_gds.py`: execute GDS workflow on AuraDB-GA or AuraDS
 
-1. Start Neo4j:
+## Prerequisites
+
+```bash
+pip install -r requirements.txt
+```
+
+Create and fill `.env` from `.env.example`.
+
+## AuraDB + AuraDS Workflow
+
+### 1. Apply constraints/indexes on AuraDB
+
+```bash
+python scripts/run_cypher_file.py --target auradb --file cypher/01_constraints_indexes.cypher
+```
+
+### 2. Load local CSVs into AuraDB
+
+```bash
+python scripts/load_data_to_auradb.py --data-dir data --reset
+```
+
+This replaces `LOAD CSV FROM file:///...` and works with Aura because ingestion is done through the Neo4j driver.
+
+### 3. Run ER and analytics Cypher on AuraDB
+
+```bash
+python scripts/run_cypher_file.py --target auradb --file cypher/03_entity_resolution_queries.cypher
+python scripts/run_cypher_file.py --target auradb --file cypher/05_integrity_competitive_queries.cypher
+```
+
+### 4. Run GDS workflows on either backend
+
+AuraDB Serverless Graph Analytics:
+
+```bash
+python scripts/run_gds.py --target auradb-ga --file cypher/04_gds_workflows.cypher
+```
+
+AuraDS:
+
+```bash
+python scripts/run_gds.py --target aurads --file cypher/04_gds_workflows.cypher
+```
+
+### 5. One-command full pipeline
+
+Run everything in sequence: schema, data load, ER/business queries, then GDS.
+
+AuraDB Serverless Graph Analytics:
+
+```bash
+python scripts/run_full_aura_pipeline.py --gds-target auradb-ga --data-dir data --reset
+```
+
+AuraDS:
+
+```bash
+python scripts/run_full_aura_pipeline.py --gds-target aurads --data-dir data --reset
+```
+
+## Local Docker Workflow (unchanged)
+
+1. Start local Neo4j:
 
 ```bash
 docker compose up -d
 ```
 
-2. Open Neo4j Browser: `http://localhost:7474`
+2. Use `scripts/load_all.cypher` only for local Docker Neo4j import volume usage.
 
-- Username: `neo4j`
-- Password: `password1234`
-
-3. Run scripts in order from Neo4j Browser, or use `cypher-shell`:
-
-```bash
-cat cypher/01_constraints_indexes.cypher | docker exec -i er-neo4j cypher-shell -u neo4j -p password1234
-cat cypher/02_sample_graph.cypher | docker exec -i er-neo4j cypher-shell -u neo4j -p password1234
-```
-
-4. Optional CSV load path:
-
-- Place CSV files in Neo4j import mount (already mapped in compose).
-- Execute `scripts/load_all.cypher`.
-
-## Script order
+## Cypher Script Order
 
 1. `cypher/01_constraints_indexes.cypher`
-2. `cypher/02_sample_graph.cypher`
+2. `cypher/02_sample_graph.cypher` (optional shortcut sample load)
 3. `cypher/03_entity_resolution_queries.cypher`
 4. `cypher/04_gds_workflows.cypher`
 5. `cypher/05_integrity_competitive_queries.cypher`
 
 ## Notes
 
-- Some queries require APOC and GDS.
-- Link prediction examples use alpha pipeline procedures from your source doc. If your GDS version differs, procedure names may need updates.
-- This repo is intentionally small and demonstrative, so analysts can adapt it to real feeds (OpenAlex, PubMed, patent data, clinical trials).
+- `scripts/load_all.cypher` uses `file:///` and is not for Aura.
+- `scripts/load_data_to_auradb.py` is the Aura-compatible ingestion path.
+- GDS execution requires the target backend to expose GDS procedures.
