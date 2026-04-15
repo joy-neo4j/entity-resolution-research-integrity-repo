@@ -1,0 +1,7 @@
+neo4j/data/
+neo4j/logs/
+neo4j/plugins/
+*.log
+.env
+.env.*
+!.env.example
