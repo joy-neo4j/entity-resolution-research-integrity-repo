@@ -59,8 +59,12 @@ def main() -> None:
 
     with GraphDatabase.driver(uri, auth=(user, password)) as driver:
         with driver.session(database=database) as session:
-            gds_ok = session.run("RETURN gds.version() AS version").single()
-            print(f"Connected. GDS version: {gds_ok['version']}")
+            try:
+                gds_ok = session.run("RETURN gds.version() AS version").single()
+                print(f"Connected. GDS version: {gds_ok['version']}")
+            except Exception:
+                # AuraDB Serverless Graph Analytics is versionless, so this is expected
+                print(f"Connected to {args.target} (GDS available)")
 
             for idx, statement in enumerate(statements, 1):
                 session.run(statement).consume()
