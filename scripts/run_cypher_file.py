@@ -71,6 +71,14 @@ def run_file(cypher_file: Path, target: str) -> None:
     text = cypher_file.read_text(encoding="utf-8")
     statements = split_statements(text)
 
+    if target == "auradb" and any("gds." in stmt.lower() for stmt in statements):
+        raise RuntimeError(
+            "Detected GDS procedure statements in file. AuraDB target does not expose GDS procedures directly. "
+            "Use one of these instead:\n"
+            "  - python scripts/run_gds.py --target auradb-ga --file cypher/04_gds_workflows.cypher\n"
+            "  - python scripts/run_gds.py --target aurads --file cypher/04_gds_workflows.cypher"
+        )
+
     if not statements:
         print(f"No statements found in {cypher_file}")
         return
