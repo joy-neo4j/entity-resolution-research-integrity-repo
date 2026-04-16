@@ -60,7 +60,10 @@ ORDER BY cartel_score DESC;
 // 6.3 Paper mill detection heuristic
 MATCH (r:Researcher)-[:AUTHORED]->(p:Paper)
 OPTIONAL MATCH (r)-[:SAME_AS]->(g:GoldenResearcher)
-WITH coalesce(g.entityId, r.researcherId) AS entity_key, collect(DISTINCT p) AS papers, collect(DISTINCT r) AS aliases
+WITH
+  coalesce(g.entityId, r.researcherId) AS entity_key,
+  collect(DISTINCT p) AS papers,
+  collect(DISTINCT r) AS aliases
 WHERE size(papers) >= 1
 WITH
   entity_key,

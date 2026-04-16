@@ -32,9 +32,12 @@ RETURN
 ORDER BY ln_score DESC, fn_score DESC;
 
 // 4.3 Candidate generation by similar names plus optional co-authorship evidence
-MATCH (r1:Researcher), (r2:Researcher)
-WHERE r1.researcherId < r2.researcherId
-  AND toLower(r1.lastName) = toLower(r2.lastName)
+MATCH (r:Researcher)
+WITH toLower(r.lastName) AS lname, collect(r) AS researchers
+WHERE size(researchers) > 1
+UNWIND range(0, size(researchers) - 2) AS i
+UNWIND range(i + 1, size(researchers) - 1) AS j
+WITH researchers[i] AS r1, researchers[j] AS r2
 OPTIONAL MATCH (r1)-[:AUTHORED]->(p:Paper)<-[:AUTHORED]-(r2)
 WITH
   r1,
@@ -49,8 +52,31 @@ RETURN
   round(1 - fn_dist, 3) AS fn_score;
 
 // 4.4 Composite confidence score
-MATCH (r1:Researcher), (r2:Researcher)
-WHERE r1.researcherId < r2.researcherId
+CALL () {
+  MATCH
+    (r1:Researcher)-[:HAS_ORCID|HAS_EMAIL]->
+    (idNode)<-[:HAS_ORCID|HAS_EMAIL]-
+    (r2:Researcher)
+  WHERE r1.researcherId < r2.researcherId
+  RETURN r1, r2
+
+    UNION
+  MATCH
+    (r1:Researcher)-[:AFFILIATED_WITH]->
+    (:Institution)<-[:AFFILIATED_WITH]-
+    (r2:Researcher)
+  WHERE r1.researcherId < r2.researcherId
+  RETURN r1, r2
+
+    UNION
+  MATCH (r:Researcher)
+  WITH toLower(r.lastName) AS lname, collect(r) AS researchers
+  WHERE size(researchers) > 1
+  UNWIND range(0, size(researchers) - 2) AS i
+  UNWIND range(i + 1, size(researchers) - 1) AS j
+  RETURN researchers[i] AS r1, researchers[j] AS r2
+}
+WITH DISTINCT r1, r2
 WITH
   r1,
   r2,
@@ -61,7 +87,14 @@ WITH r1, r2, fn_dist, ln_dist, count(o) AS shared_orcids
 OPTIONAL MATCH (r1)-[:HAS_EMAIL]->(e)<-[:HAS_EMAIL]-(r2)
 WITH r1, r2, fn_dist, ln_dist, shared_orcids, count(e) AS shared_emails
 OPTIONAL MATCH (r1)-[:AUTHORED]->(p)<-[:AUTHORED]-(r2)
-WITH r1, r2, fn_dist, ln_dist, shared_orcids, shared_emails, count(p) AS coauthored
+WITH
+  r1,
+  r2,
+  fn_dist,
+  ln_dist,
+  shared_orcids,
+  shared_emails,
+  count(p) AS coauthored
 WITH
   r1,
   r2,
@@ -87,8 +120,31 @@ RETURN
 ORDER BY score DESC;
 
 // Optional write step: materialize high-confidence SAME_AS links
-MATCH (r1:Researcher), (r2:Researcher)
-WHERE r1.researcherId < r2.researcherId
+CALL () {
+  MATCH
+    (r1:Researcher)-[:HAS_ORCID|HAS_EMAIL]->
+    (idNode)<-[:HAS_ORCID|HAS_EMAIL]-
+    (r2:Researcher)
+  WHERE r1.researcherId < r2.researcherId
+  RETURN r1, r2
+
+    UNION
+  MATCH
+    (r1:Researcher)-[:AFFILIATED_WITH]->
+    (:Institution)<-[:AFFILIATED_WITH]-
+    (r2:Researcher)
+  WHERE r1.researcherId < r2.researcherId
+  RETURN r1, r2
+
+    UNION
+  MATCH (r:Researcher)
+  WITH toLower(r.lastName) AS lname, collect(r) AS researchers
+  WHERE size(researchers) > 1
+  UNWIND range(0, size(researchers) - 2) AS i
+  UNWIND range(i + 1, size(researchers) - 1) AS j
+  RETURN researchers[i] AS r1, researchers[j] AS r2
+}
+WITH DISTINCT r1, r2
 WITH
   r1,
   r2,
