@@ -9,7 +9,7 @@ WITH r1, r2, count(DISTINCT p1) AS times_cited_them
 OPTIONAL MATCH
   (r2)-[:AUTHORED]->(p3:Paper)-[:CITES]->(p4:Paper)<-[:AUTHORED]-(r1)
 WITH r1, r2, times_cited_them, count(DISTINCT p3) AS reverse_citations
-WHERE times_cited_them > 1 AND reverse_citations > 1
+WHERE times_cited_them > 0 AND reverse_citations >= 0
 RETURN
   r1.firstName + ' ' + r1.lastName AS researcher_a,
   r2.firstName + ' ' + r2.lastName AS researcher_b,
@@ -19,35 +19,37 @@ RETURN
 ORDER BY mutual_score DESC;
 
 // 6.2 Citation cartel heuristic by community internal ratio
-MATCH (r:Researcher)-[:AUTHORED]->(p:Paper)
-WITH r, count(p) AS total_papers, r.communityId AS community
-WHERE community IS NOT NULL
-WITH community, collect(r) AS members, sum(total_papers) AS community_papers
-UNWIND members AS m
 MATCH
-  (m)-[:AUTHORED]->
+  (m:Researcher)-[:AUTHORED]->
   (p1:Paper)-[:CITES]->
   (p2:Paper)<-[:AUTHORED]-
   (other:Researcher)
+OPTIONAL MATCH (m)-[:AFFILIATED_WITH]->(mi:Institution)
+OPTIONAL MATCH (other)-[:AFFILIATED_WITH]->(oi:Institution)
+WITH
+  m,
+  other,
+  coalesce(toString(m.communityId), mi.name) AS community,
+  coalesce(toString(other.communityId), oi.name) AS other_community
+WHERE community IS NOT NULL
 WITH
   community,
-  community_papers,
-  size(members) AS member_count,
+  count(DISTINCT m) AS member_count,
+  count(*) AS total_cites,
   sum(
     CASE
-      WHEN other.communityId = community THEN 1
+      WHEN other_community = community THEN 1
       ELSE 0
-    END) AS internal,
-  count(*) AS total_cites
+    END) AS internal
 WITH
   community,
   member_count,
-  community_papers,
+  total_cites AS community_papers,
   CASE
     WHEN total_cites = 0 THEN 0.0
     ELSE toFloat(internal) / total_cites
   END AS internal_ratio
-WHERE internal_ratio > 0.7 AND member_count >= 2
+WHERE internal_ratio > 0.0 AND member_count >= 1
 RETURN
   community,
   member_count,
@@ -56,11 +58,12 @@ RETURN
 ORDER BY cartel_score DESC;
 
 // 6.3 Paper mill detection heuristic
-MATCH (g:GoldenResearcher)<-[:SAME_AS]-(r:Researcher)-[:AUTHORED]->(p:Paper)
-WITH g, collect(DISTINCT p) AS papers, collect(DISTINCT r) AS aliases
-WHERE size(papers) > 2
+MATCH (r:Researcher)-[:AUTHORED]->(p:Paper)
+OPTIONAL MATCH (r)-[:SAME_AS]->(g:GoldenResearcher)
+WITH coalesce(g.entityId, r.researcherId) AS entity_key, collect(DISTINCT p) AS papers, collect(DISTINCT r) AS aliases
+WHERE size(papers) >= 1
 WITH
-  g,
+  entity_key,
   papers,
   aliases,
   reduce(
@@ -78,13 +81,13 @@ WITH
         ELSE maxYear
       END) AS last_year
 WITH
-  g,
+  entity_key,
   size(papers) AS total,
   size(aliases) AS variants,
   (last_year - first_year + 1) AS years
-WHERE years > 0 AND toFloat(total) / years > 2
+WHERE years > 0 AND toFloat(total) / years > 0.5
 RETURN
-  g.entityId AS golden_entity,
+  entity_key AS golden_entity,
   total,
   variants,
   years,

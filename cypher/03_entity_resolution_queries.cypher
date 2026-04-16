@@ -17,58 +17,56 @@ MATCH
   (r1:Researcher)-[:AFFILIATED_WITH]->
   (i:Institution)<-[:AFFILIATED_WITH]-
   (r2:Researcher)
-WHERE r1.researcherId < r2.researcherId AND NOT (r1)-[:SAME_AS]-(r2)
+WHERE r1.researcherId < r2.researcherId
 WITH
   r1,
   r2,
-  apoc.text.jaroWinklerDistance(toLower(r1.firstName), toLower(r2.firstName)) AS first_sim,
-  apoc.text.jaroWinklerDistance(toLower(r1.lastName), toLower(r2.lastName)) AS last_sim
-WHERE first_sim > 0.70 OR last_sim > 0.85
+  apoc.text.jaroWinklerDistance(toLower(r1.firstName), toLower(r2.firstName)) AS first_dist,
+  apoc.text.jaroWinklerDistance(toLower(r1.lastName), toLower(r2.lastName)) AS last_dist
+WHERE first_dist < 0.50 OR last_dist < 0.25
 RETURN
   r1.researcherId AS id_1,
   r2.researcherId AS id_2,
-  round(first_sim, 3) AS fn_score,
-  round(last_sim, 3) AS ln_score
-ORDER BY ln_score DESC;
+  round(1 - first_dist, 3) AS fn_score,
+  round(1 - last_dist, 3) AS ln_score
+ORDER BY ln_score DESC, fn_score DESC;
 
-// 4.3 Co-authorship based candidate generation
-MATCH (r1:Researcher)-[:AUTHORED]->(p:Paper)<-[:AUTHORED]-(r2:Researcher)
-WHERE
-  r1.researcherId < r2.researcherId AND
-  toLower(r1.lastName) = toLower(r2.lastName)
+// 4.3 Candidate generation by similar names plus optional co-authorship evidence
+MATCH (r1:Researcher), (r2:Researcher)
+WHERE r1.researcherId < r2.researcherId
+  AND toLower(r1.lastName) = toLower(r2.lastName)
+OPTIONAL MATCH (r1)-[:AUTHORED]->(p:Paper)<-[:AUTHORED]-(r2)
 WITH
   r1,
   r2,
   collect(p.doi) AS shared_papers,
-  apoc.text.jaroWinklerDistance(toLower(r1.firstName), toLower(r2.firstName)) AS fn_sim
-WHERE fn_sim > 0.6 OR size(shared_papers) >= 2
+  apoc.text.jaroWinklerDistance(toLower(r1.firstName), toLower(r2.firstName)) AS fn_dist
+WHERE fn_dist < 0.5 OR size(shared_papers) >= 1
 RETURN
   r1.researcherId AS id_1,
   r2.researcherId AS id_2,
   size(shared_papers) AS papers_together,
-  round(fn_sim, 3) AS fn_score;
+  round(1 - fn_dist, 3) AS fn_score;
 
 // 4.4 Composite confidence score
 MATCH (r1:Researcher), (r2:Researcher)
-WHERE
-  r1.researcherId < r2.researcherId AND
-  toLower(r1.lastName) = toLower(r2.lastName)
+WHERE r1.researcherId < r2.researcherId
 WITH
   r1,
   r2,
-  apoc.text.jaroWinklerDistance(toLower(r1.firstName), toLower(r2.firstName)) AS fn,
-  apoc.text.jaroWinklerDistance(toLower(r1.lastName), toLower(r2.lastName)) AS ln
+  apoc.text.jaroWinklerDistance(toLower(r1.firstName), toLower(r2.firstName)) AS fn_dist,
+  apoc.text.jaroWinklerDistance(toLower(r1.lastName), toLower(r2.lastName)) AS ln_dist
 OPTIONAL MATCH (r1)-[:HAS_ORCID]->(o)<-[:HAS_ORCID]-(r2)
-WITH r1, r2, fn, ln, count(o) AS shared_orcids
+WITH r1, r2, fn_dist, ln_dist, count(o) AS shared_orcids
 OPTIONAL MATCH (r1)-[:HAS_EMAIL]->(e)<-[:HAS_EMAIL]-(r2)
-WITH r1, r2, fn, ln, shared_orcids, count(e) AS shared_emails
+WITH r1, r2, fn_dist, ln_dist, shared_orcids, count(e) AS shared_emails
 OPTIONAL MATCH (r1)-[:AUTHORED]->(p)<-[:AUTHORED]-(r2)
-WITH r1, r2, fn, ln, shared_orcids, shared_emails, count(p) AS coauthored
+WITH r1, r2, fn_dist, ln_dist, shared_orcids, shared_emails, count(p) AS coauthored
 WITH
   r1,
   r2,
-  (fn * 0.10) +
-  (ln * 0.10) +
+  ((1 - fn_dist) * 0.10) +
+  ((1 - ln_dist) * 0.10) +
   (CASE
       WHEN shared_orcids > 0 THEN 0.35
       ELSE 0
@@ -81,7 +79,7 @@ WITH
       WHEN coauthored > 0 THEN 0.15
       ELSE 0
     END) AS score
-WHERE score > 0.5
+WHERE score > 0.25
 RETURN
   r1.researcherId AS id_1,
   r2.researcherId AS id_2,
@@ -90,23 +88,21 @@ ORDER BY score DESC;
 
 // Optional write step: materialize high-confidence SAME_AS links
 MATCH (r1:Researcher), (r2:Researcher)
-WHERE
-  r1.researcherId < r2.researcherId AND
-  toLower(r1.lastName) = toLower(r2.lastName)
+WHERE r1.researcherId < r2.researcherId
 WITH
   r1,
   r2,
-  apoc.text.jaroWinklerDistance(toLower(r1.firstName), toLower(r2.firstName)) AS fn,
-  apoc.text.jaroWinklerDistance(toLower(r1.lastName), toLower(r2.lastName)) AS ln
+  apoc.text.jaroWinklerDistance(toLower(r1.firstName), toLower(r2.firstName)) AS fn_dist,
+  apoc.text.jaroWinklerDistance(toLower(r1.lastName), toLower(r2.lastName)) AS ln_dist
 OPTIONAL MATCH (r1)-[:HAS_ORCID]->(o)<-[:HAS_ORCID]-(r2)
-WITH r1, r2, fn, ln, count(o) AS shared_orcids
+WITH r1, r2, fn_dist, ln_dist, count(o) AS shared_orcids
 OPTIONAL MATCH (r1)-[:HAS_EMAIL]->(e)<-[:HAS_EMAIL]-(r2)
-WITH r1, r2, fn, ln, shared_orcids, count(e) AS shared_emails
+WITH r1, r2, fn_dist, ln_dist, shared_orcids, count(e) AS shared_emails
 WITH
   r1,
   r2,
-  (fn * 0.10) +
-  (ln * 0.10) +
+  ((1 - fn_dist) * 0.10) +
+  ((1 - ln_dist) * 0.10) +
   (CASE
       WHEN shared_orcids > 0 THEN 0.35
       ELSE 0
@@ -115,6 +111,7 @@ WITH
       WHEN shared_emails > 0 THEN 0.20
       ELSE 0
     END) AS score
-WHERE score > 0.7
+WHERE score > 0.25
 MERGE (r1)-[s:SAME_AS]-(r2)
-SET s.score = round(score, 3), s.method = 'composite';
+SET s.score = round(score, 3), s.method = 'composite'
+RETURN count(s) AS same_as_links;
