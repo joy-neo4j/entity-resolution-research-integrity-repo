@@ -6,9 +6,35 @@ from pathlib import Path
 
 def run_cmd(cmd: list[str], cwd: Path) -> None:
     print("\n$ " + " ".join(cmd))
-    result = subprocess.run(cmd, cwd=str(cwd), check=False)
+    result = subprocess.run(
+        cmd,
+        cwd=str(cwd),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="", file=sys.stderr)
     if result.returncode != 0:
-        raise RuntimeError(f"Command failed with exit code {result.returncode}: {' '.join(cmd)}")
+        raise RuntimeError(
+            f"Command failed with exit code {result.returncode}: {' '.join(cmd)}\n"
+            f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+        )
+
+
+def is_tls_oauth_failure(err: Exception) -> bool:
+    msg = str(err).lower()
+    needles = [
+        "ssleoferror",
+        "unexpected_eof",
+        "oauth/token",
+        "api.neo4j.io",
+        "could not finish writing before closing",
+        "max retries exceeded",
+    ]
+    return any(n in msg for n in needles)
 
 
 def main() -> None:
@@ -48,6 +74,8 @@ def main() -> None:
         [
             python_exe,
             "scripts/load_data_to_auradb.py",
+            "--target",
+            "auradb",
             "--data-dir",
             args.data_dir,
         ]
@@ -78,12 +106,56 @@ def main() -> None:
         ],
     ]
 
+    if args.gds_target == "aurads":
+        steps.insert(
+            4,
+            [
+                python_exe,
+                "scripts/load_data_to_auradb.py",
+                "--target",
+                "aurads",
+                "--data-dir",
+                args.data_dir,
+            ] + (["--reset"] if args.reset else []),
+        )
+
     print("Running full Aura pipeline...")
     print(f"GDS target: {args.gds_target}")
 
     for i, cmd in enumerate(steps, 1):
         print(f"\n=== Step {i}/{len(steps)} ===")
-        run_cmd(cmd, repo_root)
+        try:
+            run_cmd(cmd, repo_root)
+        except RuntimeError as err:
+            is_gds_step = "scripts/run_gds.py" in " ".join(cmd)
+            if args.gds_target == "auradb-ga" and is_gds_step and is_tls_oauth_failure(err):
+                print("\nAura Graph Analytics TLS/OAuth failure detected. Falling back to AuraDS...")
+
+                fallback_steps = [
+                    [
+                        python_exe,
+                        "scripts/load_data_to_auradb.py",
+                        "--target",
+                        "aurads",
+                        "--data-dir",
+                        args.data_dir,
+                    ] + (["--reset"] if args.reset else []),
+                    [
+                        python_exe,
+                        "scripts/run_gds.py",
+                        "--target",
+                        "aurads",
+                        "--file",
+                        "cypher/04_gds_workflows.cypher",
+                    ],
+                ]
+
+                for f_idx, f_cmd in enumerate(fallback_steps, 1):
+                    print(f"\n--- Fallback Step {f_idx}/{len(fallback_steps)} ---")
+                    run_cmd(f_cmd, repo_root)
+                continue
+
+            raise
 
     print("\nPipeline completed successfully.")
 

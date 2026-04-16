@@ -55,6 +55,42 @@ RETURN
   round(internal_ratio, 3) AS cartel_score
 ORDER BY cartel_score DESC;
 
+// 6.3 Paper mill detection heuristic
+MATCH (g:GoldenResearcher)<-[:SAME_AS]-(r:Researcher)-[:AUTHORED]->(p:Paper)
+WITH g, collect(DISTINCT p) AS papers, collect(DISTINCT r) AS aliases
+WHERE size(papers) > 2
+WITH
+  g,
+  papers,
+  aliases,
+  reduce(
+    minYear = 9999,
+    x IN [p IN papers | p.year] |
+      CASE
+        WHEN x < minYear THEN x
+        ELSE minYear
+      END) AS first_year,
+  reduce(
+    maxYear = 0,
+    x IN [p IN papers | p.year] |
+      CASE
+        WHEN x > maxYear THEN x
+        ELSE maxYear
+      END) AS last_year
+WITH
+  g,
+  size(papers) AS total,
+  size(aliases) AS variants,
+  (last_year - first_year + 1) AS years
+WHERE years > 0 AND toFloat(total) / years > 2
+RETURN
+  g.entityId AS golden_entity,
+  total,
+  variants,
+  years,
+  round(toFloat(total) / years, 2) AS papers_per_year
+ORDER BY papers_per_year DESC;
+
 // 6.4 Potential undisclosed conflict of interest
 MATCH
   (r:Researcher)-[:AUTHORED]->
@@ -81,6 +117,17 @@ RETURN
   collect(DISTINCT r.firstName + ' ' + r.lastName) AS researchers,
   collect(DISTINCT i.name) AS institutions,
   collect(DISTINCT d.name + ' (' + d.phase + ')') AS drugs;
+
+// 7.2 Institution intelligence (topic coverage)
+MATCH
+  (i:Institution)<-[:AFFILIATED_WITH]-
+  (r:Researcher)-[:AUTHORED]->
+  (p:Paper)-[:STUDIES_TARGET]->
+  (t:Target)
+WITH i, t.symbol AS topic, count(DISTINCT p) AS papers
+RETURN i.name AS institution, i.country AS country, topic, papers
+ORDER BY papers DESC
+LIMIT 20;
 
 // 7.3 Talent movement tracking
 MATCH

@@ -1,13 +1,13 @@
 // 5.1 WCC-based golden researcher creation
+// Use native heterogeneous projection so this works in both AuraDS and Aura Graph Analytics.
 CALL
-  gds.graph.project.cypher(
+  gds.graph.project(
     'researcher-er',
-    'MATCH (r:Researcher) RETURN id(r) AS id',
-    'MATCH (r1:Researcher)-[:HAS_ORCID|HAS_EMAIL]->(idNode)<-[:HAS_ORCID|HAS_EMAIL]-(r2:Researcher)
-   WHERE id(r1) < id(r2)
-   WITH r1, r2, count(DISTINCT idNode) AS idCount
-   WHERE idCount >= 1
-   RETURN id(r1) AS source, id(r2) AS target, idCount AS weight'
+    ['Researcher', 'ORCID', 'Email'],
+    {
+      HAS_ORCID: {orientation: 'UNDIRECTED'},
+      HAS_EMAIL: {orientation: 'UNDIRECTED'}
+    }
   );
 
 CALL gds.wcc.write('researcher-er', {writeProperty: 'entityId'});
@@ -24,27 +24,24 @@ FOREACH (r IN researchers |
 CALL gds.graph.drop('researcher-er', false);
 
 // 5.2 FastRP + KNN
+MATCH ()-[r:HAS_ORCID]->()
+SET r.weight = 10.0;
+MATCH ()-[r:HAS_EMAIL]->()
+SET r.weight = 5.0;
+MATCH ()-[r:AFFILIATED_WITH]->()
+SET r.weight = 2.0;
+MATCH ()-[r:AUTHORED]->()
+SET r.weight = 1.0;
+
 CALL
   gds.graph.project(
     'researcher-knn',
     ['Researcher', 'ORCID', 'Email', 'Institution', 'Paper'],
     {
-      HAS_ORCID: {
-        orientation: 'UNDIRECTED',
-        properties: {weight: {defaultValue: 10.0}}
-      },
-      HAS_EMAIL: {
-        orientation: 'UNDIRECTED',
-        properties: {weight: {defaultValue: 5.0}}
-      },
-      AFFILIATED_WITH: {
-        orientation: 'UNDIRECTED',
-        properties: {weight: {defaultValue: 2.0}}
-      },
-      AUTHORED: {
-        orientation: 'UNDIRECTED',
-        properties: {weight: {defaultValue: 1.0}}
-      }
+      HAS_ORCID: {orientation: 'UNDIRECTED', properties: 'weight'},
+      HAS_EMAIL: {orientation: 'UNDIRECTED', properties: 'weight'},
+      AFFILIATED_WITH: {orientation: 'UNDIRECTED', properties: 'weight'},
+      AUTHORED: {orientation: 'UNDIRECTED', properties: 'weight'}
     }
   );
 
@@ -74,6 +71,55 @@ CALL
   );
 
 CALL gds.graph.drop('researcher-knn', false);
+
+// 5.3 Link Prediction for hidden researcher connections
+// Create coauthored relationships from shared paper authorship as LP training target.
+MATCH (a:Researcher)-[:AUTHORED]->(p:Paper)<-[:AUTHORED]-(b:Researcher)
+WHERE a <> b
+MERGE (a)-[:COAUTHORED]-(b);
+
+CALL gds.graph.drop('researcher-lp', false);
+CALL gds.pipeline.drop('researcher-lp-pipe', false);
+CALL gds.model.drop('researcher-lp-model', false);
+
+CALL
+  gds.graph.project(
+    'researcher-lp',
+    'Researcher',
+    {COAUTHORED: {orientation: 'UNDIRECTED'}}
+  );
+
+CALL gds.model.drop('researcher-lp-model', false) YIELD modelName;
+
+CALL gds.beta.pipeline.linkPrediction.create('researcher-lp-pipe');
+
+CALL
+  gds.beta.pipeline.linkPrediction.addNodeProperty(
+    'researcher-lp-pipe',
+    'fastRP',
+    {embeddingDimension: 128, mutateProperty: 'emb'}
+  );
+
+CALL
+  gds.beta.pipeline.linkPrediction.addFeature(
+    'researcher-lp-pipe',
+    'cosine',
+    {nodeProperties: ['emb']}
+  );
+
+CALL
+  gds.beta.pipeline.linkPrediction.train(
+    'researcher-lp',
+    {
+      pipeline: 'researcher-lp-pipe',
+      modelName: 'researcher-lp-model',
+      targetRelationshipType: 'COAUTHORED',
+      metrics: ['AUCPR']
+    }
+  )
+  YIELD modelInfo;
+
+CALL gds.graph.drop('researcher-lp', false);
 
 // 5.4 Community detection (co-citation)
 MATCH

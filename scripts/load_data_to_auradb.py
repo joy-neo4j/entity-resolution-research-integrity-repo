@@ -26,21 +26,33 @@ def run_batch(session, query: str, rows: list[dict], label: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Load local CSV data into AuraDB using neo4j driver")
+    parser = argparse.ArgumentParser(description="Load local CSV data into AuraDB or AuraDS using neo4j driver")
     parser.add_argument("--data-dir", default="data", help="Folder containing sample CSV files")
     parser.add_argument("--reset", action="store_true", help="Delete all graph data before loading")
+    parser.add_argument(
+        "--target",
+        choices=["auradb", "aurads"],
+        default="auradb",
+        help="Database target to load sample data into",
+    )
     args = parser.parse_args()
 
     if load_dotenv is not None:
         load_dotenv()
 
-    uri = os.getenv("AURA_DB_URI") or os.getenv("NEO4J_URI")
-    user = os.getenv("AURA_DB_USERNAME") or os.getenv("NEO4J_USER") or os.getenv("NEO4J_USERNAME")
-    password = os.getenv("AURA_DB_PASSWORD") or os.getenv("NEO4J_PASSWORD")
-    database = os.getenv("AURA_DB_DATABASE") or os.getenv("NEO4J_DATABASE") or "neo4j"
+    if args.target == "auradb":
+        uri = os.getenv("AURA_DB_URI") or os.getenv("NEO4J_URI")
+        user = os.getenv("AURA_DB_USERNAME") or os.getenv("NEO4J_USER") or os.getenv("NEO4J_USERNAME")
+        password = os.getenv("AURA_DB_PASSWORD") or os.getenv("NEO4J_PASSWORD")
+        database = os.getenv("AURA_DB_DATABASE") or os.getenv("NEO4J_DATABASE") or "neo4j"
+    else:
+        uri = os.getenv("AURA_DS_URI")
+        user = os.getenv("AURA_DS_USERNAME") or os.getenv("AURA_DB_USERNAME") or os.getenv("NEO4J_USER") or os.getenv("NEO4J_USERNAME")
+        password = os.getenv("AURA_DS_PASSWORD")
+        database = os.getenv("AURA_DS_DATABASE") or "neo4j"
 
     if not all([uri, user, password]):
-        raise RuntimeError("Missing AuraDB connection vars. Check AURA_DB_URI/AURA_DB_USERNAME/AURA_DB_PASSWORD")
+        raise RuntimeError(f"Missing connection vars for target={args.target}")
 
     data_dir = Path(args.data_dir)
     if not data_dir.exists():
@@ -317,7 +329,7 @@ def main() -> None:
                 "rels:INVENTED",
             )
 
-    print("AuraDB data load complete.")
+    print(f"Data load complete for target={args.target}.")
 
 
 if __name__ == "__main__":
