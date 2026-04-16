@@ -1,6 +1,9 @@
 neo4j/data/
 neo4j/logs/
 neo4j/plugins/
+__pycache__/
+*.pyc
+.venv312/
 *.log
 .env
 .env.*
