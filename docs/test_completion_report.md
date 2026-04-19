@@ -161,7 +161,7 @@ Observed outcome:
 - Prepared repository for commit by removing repo-root Python cache artifacts
 
 ## Residual Repository Note
-The repository historically tracks `.venv312` content. That was not removed as part of this cleanup because doing so would be a large repository-structure change rather than a focused finalization of the implemented feature set.
+The repository historically included `.venv312` content in an older commit, but it has since been removed from tracking and `.gitignore` rules now prevent recommit of virtualenv and `site-packages` content.
 
 ## Final Assessment
 Overall status: Core deliverable completed for the graph data and analytics pipeline.
