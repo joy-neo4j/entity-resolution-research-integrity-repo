@@ -56,40 +56,58 @@ SET
 // ON CREATE SET preserves the original casing for display.
 MERGE (orcid1:ORCID {value: '0000-0002-1234-5678'});
 MERGE (orcid2:ORCID {value: '0000-0003-9876-5432'});
-MERGE (email1:Email {emailNormalized: toLower(trim('sarah.chen@cambridgepharma.ac.uk'))})
-ON CREATE SET email1.address = 'sarah.chen@cambridgepharma.ac.uk';
+MERGE
+  (email1:Email
+    {emailNormalized: toLower(trim('sarah.chen@cambridgepharma.ac.uk'))})
+  ON CREATE SET email1.address = 'sarah.chen@cambridgepharma.ac.uk';
 MERGE (email2:Email {emailNormalized: toLower(trim('s.chen@mit.edu'))})
-ON CREATE SET email2.address = 's.chen@mit.edu';
-MERGE (email3:Email {emailNormalized: toLower(trim('marco.rossi@karolinska.se'))})
-ON CREATE SET email3.address = 'marco.rossi@karolinska.se';
+  ON CREATE SET email2.address = 's.chen@mit.edu';
+MERGE
+  (email3:Email {emailNormalized: toLower(trim('marco.rossi@karolinska.se'))})
+  ON CREATE SET email3.address = 'marco.rossi@karolinska.se';
 MERGE (email4:Email {emailNormalized: toLower(trim('j.chen@stanford.edu'))})
-ON CREATE SET email4.address = 'j.chen@stanford.edu';
+  ON CREATE SET email4.address = 'j.chen@stanford.edu';
 
-MATCH (r1:Researcher {researcherId: 'RES001'}), (orcid1:ORCID {value: '0000-0002-1234-5678'})
+MATCH (r1:Researcher {researcherId: 'RES001'})
+MATCH (orcid1:ORCID {value: '0000-0002-1234-5678'})
 MERGE (r1)-[:HAS_ORCID]->(orcid1);
 
-MATCH (r3:Researcher {researcherId: 'RES003'}), (orcid1:ORCID {value: '0000-0002-1234-5678'})
+MATCH (r3:Researcher {researcherId: 'RES003'})
+MATCH (orcid1:ORCID {value: '0000-0002-1234-5678'})
 MERGE (r3)-[:HAS_ORCID]->(orcid1);
 
-MATCH (r4:Researcher {researcherId: 'RES004'}), (orcid2:ORCID {value: '0000-0003-9876-5432'})
+MATCH (r4:Researcher {researcherId: 'RES004'})
+MATCH (orcid2:ORCID {value: '0000-0003-9876-5432'})
 MERGE (r4)-[:HAS_ORCID]->(orcid2);
 
-MATCH (r1:Researcher {researcherId: 'RES001'}), (email1:Email {emailNormalized: toLower(trim('sarah.chen@cambridgepharma.ac.uk'))})
+MATCH (r1:Researcher {researcherId: 'RES001'})
+MATCH
+  (email1:Email
+    {emailNormalized: toLower(trim('sarah.chen@cambridgepharma.ac.uk'))})
 MERGE (r1)-[:HAS_EMAIL]->(email1);
 
-MATCH (r2:Researcher {researcherId: 'RES002'}), (email1:Email {emailNormalized: toLower(trim('sarah.chen@cambridgepharma.ac.uk'))})
+MATCH (r2:Researcher {researcherId: 'RES002'})
+MATCH
+  (email1:Email
+    {emailNormalized: toLower(trim('sarah.chen@cambridgepharma.ac.uk'))})
 MERGE (r2)-[:HAS_EMAIL]->(email1);
 
-MATCH (r3:Researcher {researcherId: 'RES003'}), (email2:Email {emailNormalized: toLower(trim('s.chen@mit.edu'))})
+MATCH (r3:Researcher {researcherId: 'RES003'})
+MATCH (email2:Email {emailNormalized: toLower(trim('s.chen@mit.edu'))})
 MERGE (r3)-[:HAS_EMAIL]->(email2);
 
-MATCH (r4:Researcher {researcherId: 'RES004'}), (email3:Email {emailNormalized: toLower(trim('marco.rossi@karolinska.se'))})
+MATCH (r4:Researcher {researcherId: 'RES004'})
+MATCH
+  (email3:Email {emailNormalized: toLower(trim('marco.rossi@karolinska.se'))})
 MERGE (r4)-[:HAS_EMAIL]->(email3);
 
-MATCH (r5:Researcher {researcherId: 'RES005'}), (email3:Email {emailNormalized: toLower(trim('marco.rossi@karolinska.se'))})
+MATCH (r5:Researcher {researcherId: 'RES005'})
+MATCH
+  (email3:Email {emailNormalized: toLower(trim('marco.rossi@karolinska.se'))})
 MERGE (r5)-[:HAS_EMAIL]->(email3);
 
-MATCH (r6:Researcher {researcherId: 'RES006'}), (email4:Email {emailNormalized: toLower(trim('j.chen@stanford.edu'))})
+MATCH (r6:Researcher {researcherId: 'RES006'})
+MATCH (email4:Email {emailNormalized: toLower(trim('j.chen@stanford.edu'))})
 MERGE (r6)-[:HAS_EMAIL]->(email4);
 
 // Institutions and affiliations
@@ -100,13 +118,18 @@ SET inst1.country = 'UK', inst1.city = 'Cambridge';
 MERGE (inst2:Institution {name: 'MIT Koch Institute for Cancer Research'})
 SET inst2.country = 'US', inst2.city = 'Cambridge';
 
-MATCH (r1:Researcher {researcherId: 'RES001'}), (inst1:Institution {name: 'Cambridge Institute of Therapeutic Innovation'})
+MATCH (r1:Researcher {researcherId: 'RES001'})
+MATCH
+  (inst1:Institution {name: 'Cambridge Institute of Therapeutic Innovation'})
 MERGE (r1)-[:AFFILIATED_WITH {year: 2024}]->(inst1);
 
-MATCH (r2:Researcher {researcherId: 'RES002'}), (inst1:Institution {name: 'Cambridge Institute of Therapeutic Innovation'})
+MATCH (r2:Researcher {researcherId: 'RES002'})
+MATCH
+  (inst1:Institution {name: 'Cambridge Institute of Therapeutic Innovation'})
 MERGE (r2)-[:AFFILIATED_WITH {year: 2022}]->(inst1);
 
-MATCH (r3:Researcher {researcherId: 'RES003'}), (inst2:Institution {name: 'MIT Koch Institute for Cancer Research'})
+MATCH (r3:Researcher {researcherId: 'RES003'})
+MATCH (inst2:Institution {name: 'MIT Koch Institute for Cancer Research'})
 MERGE (r3)-[:AFFILIATED_WITH {year: 2025}]->(inst2);
 
 // Papers, target, phenotype, drug, company, patent
@@ -149,50 +172,66 @@ SET
   pat1.filingDate = date('2023-06-15');
 
 // Graph links
-MATCH (r1:Researcher {researcherId: 'RES001'}), (p1:Paper {doi: '10.1038/s41586-024-0001'})
+MATCH (r1:Researcher {researcherId: 'RES001'})
+MATCH (p1:Paper {doi: '10.1038/s41586-024-0001'})
 MERGE (r1)-[:AUTHORED {position: 'first'}]->(p1);
 
-MATCH (r2:Researcher {researcherId: 'RES002'}), (p2:Paper {doi: '10.1016/j.cell.2023-0002'})
+MATCH (r2:Researcher {researcherId: 'RES002'})
+MATCH (p2:Paper {doi: '10.1016/j.cell.2023-0002'})
 MERGE (r2)-[:AUTHORED {position: 'corresponding'}]->(p2);
 
-MATCH (r4:Researcher {researcherId: 'RES004'}), (p1:Paper {doi: '10.1038/s41586-024-0001'})
+MATCH (r4:Researcher {researcherId: 'RES004'})
+MATCH (p1:Paper {doi: '10.1038/s41586-024-0001'})
 MERGE (r4)-[:AUTHORED {position: 'last'}]->(p1);
 
-MATCH (r5:Researcher {researcherId: 'RES005'}), (p2:Paper {doi: '10.1016/j.cell.2023-0002'})
+MATCH (r5:Researcher {researcherId: 'RES005'})
+MATCH (p2:Paper {doi: '10.1016/j.cell.2023-0002'})
 MERGE (r5)-[:AUTHORED {position: 'first'}]->(p2);
 
-MATCH (r3:Researcher {researcherId: 'RES003'}), (p3:Paper {doi: '10.1126/science.2025-0003'})
+MATCH (r3:Researcher {researcherId: 'RES003'})
+MATCH (p3:Paper {doi: '10.1126/science.2025-0003'})
 MERGE (r3)-[:AUTHORED {position: 'first'}]->(p3);
 
-MATCH (p2:Paper {doi: '10.1016/j.cell.2023-0002'}), (p1:Paper {doi: '10.1038/s41586-024-0001'})
+MATCH (p2:Paper {doi: '10.1016/j.cell.2023-0002'})
+MATCH (p1:Paper {doi: '10.1038/s41586-024-0001'})
 MERGE (p2)-[:CITES]->(p1);
 
-MATCH (p3:Paper {doi: '10.1126/science.2025-0003'}), (p1:Paper {doi: '10.1038/s41586-024-0001'})
+MATCH (p3:Paper {doi: '10.1126/science.2025-0003'})
+MATCH (p1:Paper {doi: '10.1038/s41586-024-0001'})
 MERGE (p3)-[:CITES]->(p1);
 
-MATCH (p1:Paper {doi: '10.1038/s41586-024-0001'}), (t1:Target {symbol: 'HER2'})
+MATCH (p1:Paper {doi: '10.1038/s41586-024-0001'})
+MATCH (t1:Target {symbol: 'HER2'})
 MERGE (p1)-[:STUDIES_TARGET]->(t1);
 
-MATCH (p2:Paper {doi: '10.1016/j.cell.2023-0002'}), (t1:Target {symbol: 'HER2'})
+MATCH (p2:Paper {doi: '10.1016/j.cell.2023-0002'})
+MATCH (t1:Target {symbol: 'HER2'})
 MERGE (p2)-[:STUDIES_TARGET]->(t1);
 
-MATCH (p3:Paper {doi: '10.1126/science.2025-0003'}), (t2:Target {symbol: 'BRCA1'})
+MATCH (p3:Paper {doi: '10.1126/science.2025-0003'})
+MATCH (t2:Target {symbol: 'BRCA1'})
 MERGE (p3)-[:STUDIES_TARGET]->(t2);
 
-MATCH (d1:Drug {codeName: 'T-DXd'}), (t1:Target {symbol: 'HER2'})
+MATCH (d1:Drug {codeName: 'T-DXd'})
+MATCH (t1:Target {symbol: 'HER2'})
 MERGE (d1)-[:HAS_TARGET]->(t1);
 
-MATCH (d1:Drug {codeName: 'T-DXd'}), (ph1:Phenotype {name: 'Non-Small Cell Lung Cancer'})
+MATCH (d1:Drug {codeName: 'T-DXd'})
+MATCH (ph1:Phenotype {name: 'Non-Small Cell Lung Cancer'})
 MERGE (d1)-[:TREATS]->(ph1);
 
-MATCH (d1:Drug {codeName: 'T-DXd'}), (co1:Company {name: 'Daiichi Sankyo'})
+MATCH (d1:Drug {codeName: 'T-DXd'})
+MATCH (co1:Company {name: 'Daiichi Sankyo'})
 MERGE (d1)-[:DEVELOPED_BY]->(co1);
 
-MATCH (pat1:Patent {patentNumber: 'US20240001A1'}), (t1:Target {symbol: 'HER2'})
+MATCH (pat1:Patent {patentNumber: 'US20240001A1'})
+MATCH (t1:Target {symbol: 'HER2'})
 MERGE (pat1)-[:TARGETS]->(t1);
 
-MATCH (pat1:Patent {patentNumber: 'US20240001A1'}), (co1:Company {name: 'Daiichi Sankyo'})
+MATCH (pat1:Patent {patentNumber: 'US20240001A1'})
+MATCH (co1:Company {name: 'Daiichi Sankyo'})
 MERGE (pat1)-[:ASSIGNED_TO]->(co1);
 
-MATCH (r1:Researcher {researcherId: 'RES001'}), (pat1:Patent {patentNumber: 'US20240001A1'})
+MATCH (r1:Researcher {researcherId: 'RES001'})
+MATCH (pat1:Patent {patentNumber: 'US20240001A1'})
 MERGE (r1)-[:INVENTED]->(pat1);
