@@ -8,6 +8,8 @@ MERGE (r:Researcher {researcherId: row.researcherId})
 SET
   r.firstName = row.firstName,
   r.lastName = row.lastName,
+  r.firstNameNormalized = toLower(trim(row.firstName)),
+  r.lastNameNormalized = toLower(trim(row.lastName)),
   r.suffix = row.suffix;
 
 LOAD CSV WITH HEADERS FROM 'file:///institutions.csv' AS row
@@ -42,7 +44,8 @@ LOAD CSV WITH HEADERS FROM 'file:///orcids.csv' AS row
 MERGE (o:ORCID {value: row.orcid});
 
 LOAD CSV WITH HEADERS FROM 'file:///emails.csv' AS row
-MERGE (e:Email {address: row.email});
+MERGE (e:Email {emailNormalized: toLower(trim(row.email))})
+ON CREATE SET e.address = row.email;
 
 // Relationships
 LOAD CSV WITH HEADERS FROM 'file:///orcids.csv' AS row
@@ -52,7 +55,7 @@ MERGE (r)-[:HAS_ORCID]->(o);
 
 LOAD CSV WITH HEADERS FROM 'file:///emails.csv' AS row
 MATCH (r:Researcher {researcherId: row.researcherId})
-MATCH (e:Email {address: row.email})
+MATCH (e:Email {emailNormalized: toLower(trim(row.email))})
 MERGE (r)-[:HAS_EMAIL]->(e);
 
 LOAD CSV WITH HEADERS FROM 'file:///affiliations.csv' AS row
