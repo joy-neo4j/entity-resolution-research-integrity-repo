@@ -256,7 +256,71 @@ three methods below — no `git clone` required on your workstation.
 
 ### 11.1 GitHub Actions — trigger from the GitHub UI or `gh` CLI
 
-This is the recommended zero-local-setup approach.
+Add the workflow definition below as `.github/workflows/reload-data.yml` in
+your fork, then follow the setup steps.
+
+<details>
+<summary>Workflow YAML (click to expand)</summary>
+
+```yaml
+name: Reload sample data into AuraDB
+
+on:
+  workflow_dispatch:
+    inputs:
+      gds_target:
+        description: "GDS execution target"
+        required: true
+        default: "auradb-ga"
+        type: choice
+        options:
+          - auradb-ga
+          - aurads
+      reset:
+        description: "Delete existing graph before loading"
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  reload:
+    runs-on: ubuntu-latest
+
+    env:
+      AURA_DB_URI: ${{ secrets.AURA_DB_URI }}
+      AURA_DB_USERNAME: ${{ secrets.AURA_DB_USERNAME }}
+      AURA_DB_PASSWORD: ${{ secrets.AURA_DB_PASSWORD }}
+      AURA_DB_DATABASE: ${{ secrets.AURA_DB_DATABASE || 'neo4j' }}
+      NEO4J_URI: ${{ secrets.AURA_DB_URI }}
+      NEO4J_USER: ${{ secrets.AURA_DB_USERNAME }}
+      NEO4J_USERNAME: ${{ secrets.AURA_DB_USERNAME }}
+      NEO4J_PASSWORD: ${{ secrets.AURA_DB_PASSWORD }}
+      NEO4J_DATABASE: ${{ secrets.AURA_DB_DATABASE || 'neo4j' }}
+      AURA_CLIENT_ID: ${{ secrets.AURA_CLIENT_ID }}
+      AURA_CLIENT_SECRET: ${{ secrets.AURA_CLIENT_SECRET }}
+      AURA_PROJECT_ID: ${{ secrets.AURA_PROJECT_ID }}
+      AURA_DS_URI: ${{ secrets.AURA_DS_URI }}
+      AURA_DS_USERNAME: ${{ secrets.AURA_DS_USERNAME }}
+      AURA_DS_PASSWORD: ${{ secrets.AURA_DS_PASSWORD }}
+      AURA_DS_DATABASE: ${{ secrets.AURA_DS_DATABASE || 'neo4j' }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install --no-cache-dir -r requirements.txt
+      - run: python scripts/run_cypher_file.py --target auradb --file cypher/01_constraints_indexes.cypher
+      - run: |
+          python scripts/load_data_to_auradb.py --target auradb --data-dir data \
+            ${{ inputs.reset && '--reset' || '' }}
+      - run: python scripts/run_cypher_file.py --target auradb --file cypher/03_entity_resolution_queries.cypher
+      - run: python scripts/run_cypher_file.py --target auradb --file cypher/05_integrity_competitive_queries.cypher
+      - run: python scripts/run_gds.py --target ${{ inputs.gds_target }} --file cypher/04_gds_workflows.cypher
+```
+
+</details>
 
 #### One-time setup (repository Secrets)
 
@@ -295,8 +359,6 @@ gh workflow run reload-data.yml \
   --field gds_target=aurads \
   --field reset=false
 ```
-
-The workflow file is at `.github/workflows/reload-data.yml`.
 
 ### 11.2 Docker one-liner from the GitHub tarball
 
@@ -361,3 +423,113 @@ python scripts/run_full_aura_pipeline.py --gds-target auradb-ga --data-dir data 
 ```
 
 No local disk space or Docker installation required.
+
+## 12) Open in VS Code and Reload Locally
+
+This section covers two VS Code-based approaches: browsing the remote repo
+without a full clone (read/edit only) and the recommended path of cloning
+locally to run the full pipeline.
+
+### 12.1 Browse the Remote Repo Without Cloning (GitHub Repositories extension)
+
+The **GitHub Repositories** extension lets you open, browse, and edit files
+directly from GitHub inside VS Code — no disk clone needed.  
+⚠️ Python scripts **cannot be executed** in this mode (no local filesystem or
+terminal). Use this for reading and editing files only, then commit back via
+the extension's source control panel.
+
+1. Install the **GitHub Repositories** extension (publisher: GitHub) from the
+   Extensions panel (`Ctrl+Shift+X` / `Cmd+Shift+X`).
+2. Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) and run:
+   `Remote Repositories: Open Remote Repository…`
+3. Choose **Open Repository from GitHub** and search for
+   `joy-neo4j/entity-resolution-research-integrity-repo`.
+4. The repo opens in a virtual workspace. Browse `cypher/`, `data/`, and
+   `scripts/` without any download.
+5. To edit files, make changes and use the **Source Control** panel
+   (`Ctrl+Shift+G`) to commit and push back to GitHub.
+
+### 12.2 Clone via VS Code and Reload Locally (full pipeline)
+
+This is the recommended approach when you need to run or regenerate data.
+
+#### Step 1 — Clone the repository
+
+1. Open VS Code.
+2. Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) and run:
+   `Git: Clone`
+3. Enter the repository URL:
+   ```
+   https://github.com/joy-neo4j/entity-resolution-research-integrity-repo.git
+   ```
+4. Choose a local folder (e.g. `~/projects/`). VS Code will clone the repo
+   and offer to open it — click **Open**.
+
+Alternatively, clone from the terminal and then open the folder:
+
+```bash
+git clone https://github.com/joy-neo4j/entity-resolution-research-integrity-repo.git
+code entity-resolution-research-integrity-repo
+```
+
+#### Step 2 — Open an integrated terminal
+
+Press `` Ctrl+` `` (Windows/Linux) or `` Cmd+` `` (macOS), or go to
+**Terminal → New Terminal**.
+
+#### Step 3 — Configure environment variables
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` in VS Code and fill in your Aura credentials (see Section 3).
+
+#### Step 4 — Create a virtual environment and install dependencies
+
+```bash
+python -m venv .venv
+# Windows
+.\.venv\Scripts\activate
+# macOS / Linux
+source .venv/bin/activate
+
+pip install -r requirements.txt
+```
+
+#### Step 5 — Apply schema
+
+```bash
+python scripts/run_cypher_file.py --target auradb --file cypher/01_constraints_indexes.cypher
+```
+
+#### Step 6 — Reload sample data (reset + load)
+
+```bash
+python scripts/load_data_to_auradb.py --target auradb --data-dir data --reset
+```
+
+#### Step 7 — Re-run entity resolution and integrity queries
+
+```bash
+python scripts/run_cypher_file.py --target auradb --file cypher/03_entity_resolution_queries.cypher
+python scripts/run_cypher_file.py --target auradb --file cypher/05_integrity_competitive_queries.cypher
+```
+
+#### Step 8 — Re-run GDS workflows
+
+```bash
+# Aura Graph Analytics session
+python scripts/run_gds.py --target auradb-ga --file cypher/04_gds_workflows.cypher
+
+# Or AuraDS
+python scripts/run_gds.py --target aurads --file cypher/04_gds_workflows.cypher
+```
+
+#### One-command alternative (steps 5 – 8 combined)
+
+```bash
+python scripts/run_full_aura_pipeline.py --gds-target auradb-ga --data-dir data --reset
+```
+
+See Section 5 for full pipeline options and auto-fallback behaviour.
