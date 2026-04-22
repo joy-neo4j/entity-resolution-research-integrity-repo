@@ -1,0 +1,91 @@
+name: Reload sample data into AuraDB
+
+on:
+  workflow_dispatch:
+    inputs:
+      gds_target:
+        description: "GDS execution target"
+        required: true
+        default: "auradb-ga"
+        type: choice
+        options:
+          - auradb-ga
+          - aurads
+      reset:
+        description: "Delete existing graph before loading"
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  reload:
+    runs-on: ubuntu-latest
+
+    env:
+      # AuraDB connection (required)
+      AURA_DB_URI: ${{ secrets.AURA_DB_URI }}
+      AURA_DB_USERNAME: ${{ secrets.AURA_DB_USERNAME }}
+      AURA_DB_PASSWORD: ${{ secrets.AURA_DB_PASSWORD }}
+      AURA_DB_DATABASE: ${{ secrets.AURA_DB_DATABASE || 'neo4j' }}
+
+      # Aliases used by some scripts
+      NEO4J_URI: ${{ secrets.AURA_DB_URI }}
+      NEO4J_USER: ${{ secrets.AURA_DB_USERNAME }}
+      NEO4J_USERNAME: ${{ secrets.AURA_DB_USERNAME }}
+      NEO4J_PASSWORD: ${{ secrets.AURA_DB_PASSWORD }}
+      NEO4J_DATABASE: ${{ secrets.AURA_DB_DATABASE || 'neo4j' }}
+
+      # Aura Graph Analytics credentials (required when gds_target = auradb-ga)
+      AURA_CLIENT_ID: ${{ secrets.AURA_CLIENT_ID }}
+      AURA_CLIENT_SECRET: ${{ secrets.AURA_CLIENT_SECRET }}
+      AURA_PROJECT_ID: ${{ secrets.AURA_PROJECT_ID }}
+
+      # AuraDS credentials (required when gds_target = aurads)
+      AURA_DS_URI: ${{ secrets.AURA_DS_URI }}
+      AURA_DS_USERNAME: ${{ secrets.AURA_DS_USERNAME }}
+      AURA_DS_PASSWORD: ${{ secrets.AURA_DS_PASSWORD }}
+      AURA_DS_DATABASE: ${{ secrets.AURA_DS_DATABASE || 'neo4j' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install --no-cache-dir -r requirements.txt
+
+      - name: Apply schema (constraints and indexes)
+        run: |
+          python scripts/run_cypher_file.py \
+            --target auradb \
+            --file cypher/01_constraints_indexes.cypher
+
+      - name: Load sample data into AuraDB
+        run: |
+          python scripts/load_data_to_auradb.py \
+            --target auradb \
+            --data-dir data \
+            ${{ inputs.reset && '--reset' || '' }}
+
+      - name: Run entity-resolution queries
+        run: |
+          python scripts/run_cypher_file.py \
+            --target auradb \
+            --file cypher/03_entity_resolution_queries.cypher
+
+      - name: Run integrity and competitive intelligence queries
+        run: |
+          python scripts/run_cypher_file.py \
+            --target auradb \
+            --file cypher/05_integrity_competitive_queries.cypher
+
+      - name: Run GDS workflows
+        run: |
+          python scripts/run_gds.py \
+            --target ${{ inputs.gds_target }} \
+            --file cypher/04_gds_workflows.cypher

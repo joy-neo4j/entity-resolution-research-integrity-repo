@@ -7,7 +7,7 @@ This repository implements entity resolution and research integrity workflows wi
 
 ## 1) Repository Layout
 
-- `cypher/00_backfill_canonical.cypher`: one-time backfill to stamp `emailNormalized`/`orcidNormalized` on existing nodes
+- `cypher/00_backfill_canonical.cypher`: one-time backfill to stamp `emailNormalized` / `firstNameNormalized` / `lastNameNormalized` on existing nodes
 - `cypher/01_constraints_indexes.cypher`: constraints and indexes (including canonical-property uniqueness)
 - `cypher/02_sample_graph.cypher`: direct sample graph creation (no CSV)
 - `cypher/03_entity_resolution_queries.cypher`: ER candidate and scoring queries
@@ -247,3 +247,117 @@ Notes:
 ```
 
 The pipeline will switch to AuraDS automatically when `auradb-ga` fails.
+
+## 11) Reload Data from the Remote Repo (No Local Clone)
+
+The CSV dataset lives in `data/` and is committed to the repository, so the
+full load pipeline can be re-run directly from the remote repo by any of the
+three methods below — no `git clone` required on your workstation.
+
+### 11.1 GitHub Actions — trigger from the GitHub UI or `gh` CLI
+
+This is the recommended zero-local-setup approach.
+
+#### One-time setup (repository Secrets)
+
+Go to **GitHub → Settings → Secrets and variables → Actions** and add the
+secrets matching your `.env` values:
+
+| Secret | Description |
+|---|---|
+| `AURA_DB_URI` | AuraDB Bolt URL |
+| `AURA_DB_USERNAME` | AuraDB username |
+| `AURA_DB_PASSWORD` | AuraDB password |
+| `AURA_DB_DATABASE` | Database name (defaults to `neo4j`) |
+| `AURA_CLIENT_ID` | Required for `auradb-ga` GDS target |
+| `AURA_CLIENT_SECRET` | Required for `auradb-ga` GDS target |
+| `AURA_DS_URI` | Required for `aurads` GDS target |
+| `AURA_DS_USERNAME` | Required for `aurads` GDS target |
+| `AURA_DS_PASSWORD` | Required for `aurads` GDS target |
+
+#### Trigger from the GitHub UI
+
+1. Open the repository on GitHub.
+2. Click **Actions → Reload sample data into AuraDB**.
+3. Click **Run workflow**, choose GDS target and whether to reset, then click
+   **Run workflow** again.
+
+#### Trigger from the `gh` CLI (no browser needed)
+
+```bash
+# Default: auradb-ga target, reset=true
+gh workflow run reload-data.yml \
+  --repo joy-neo4j/entity-resolution-research-integrity-repo
+
+# AuraDS target, no reset
+gh workflow run reload-data.yml \
+  --repo joy-neo4j/entity-resolution-research-integrity-repo \
+  --field gds_target=aurads \
+  --field reset=false
+```
+
+The workflow file is at `.github/workflows/reload-data.yml`.
+
+### 11.2 Docker one-liner from the GitHub tarball
+
+Downloads the repo as a compressed tarball directly from GitHub and pipes it
+into a throwaway Python container — no clone, no local repo needed.
+
+```bash
+curl -sL https://github.com/joy-neo4j/entity-resolution-research-integrity-repo/archive/refs/heads/main.tar.gz \
+| docker run --rm -i \
+  -e AURA_DB_URI="neo4j+s://YOUR_ID.databases.neo4j.io" \
+  -e AURA_DB_USERNAME="neo4j" \
+  -e AURA_DB_PASSWORD="YOUR_PASSWORD" \
+  -e AURA_DB_DATABASE="neo4j" \
+  -e AURA_CLIENT_ID="YOUR_CLIENT_ID" \
+  -e AURA_CLIENT_SECRET="YOUR_CLIENT_SECRET" \
+  python:3.12-slim bash -lc "
+    set -e
+    mkdir -p /work
+    tar -C /work -xzf - --strip-components=1
+    cd /work
+    pip install --no-cache-dir -r requirements.txt
+    python scripts/run_full_aura_pipeline.py --gds-target auradb-ga --data-dir data --reset
+  "
+```
+
+Alternatively pass credentials from a local `.env` file using `--env-file`:
+
+```bash
+curl -sL https://github.com/joy-neo4j/entity-resolution-research-integrity-repo/archive/refs/heads/main.tar.gz \
+| docker run --rm -i --env-file .env \
+  python:3.12-slim bash -lc "
+    set -e
+    mkdir -p /work
+    tar -C /work -xzf - --strip-components=1
+    cd /work
+    pip install --no-cache-dir -r requirements.txt
+    python scripts/run_full_aura_pipeline.py --gds-target auradb-ga --data-dir data --reset
+  "
+```
+
+To target a specific branch or tag, replace `main` in the URL:
+
+```
+https://github.com/joy-neo4j/entity-resolution-research-integrity-repo/archive/refs/heads/BRANCH.tar.gz
+https://github.com/joy-neo4j/entity-resolution-research-integrity-repo/archive/refs/tags/TAG.tar.gz
+```
+
+### 11.3 GitHub Codespaces
+
+Codespaces gives you a browser-based VS Code environment pre-cloned from the
+remote repo.
+
+1. Open the repository on GitHub.
+2. Click **Code → Codespaces → Create codespace on main**.
+3. Once the terminal opens inside Codespaces:
+
+```bash
+cp .env.example .env
+# Edit .env with your credentials (nano / vim / the file explorer)
+pip install -r requirements.txt
+python scripts/run_full_aura_pipeline.py --gds-target auradb-ga --data-dir data --reset
+```
+
+No local disk space or Docker installation required.
