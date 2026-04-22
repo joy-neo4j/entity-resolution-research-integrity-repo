@@ -81,6 +81,14 @@ python scripts/load_data_to_auradb.py --data-dir data --reset
 
 Expected: load counters for each node and relationship CSV.
 
+### Step 2A (recommended): Backfill canonical fields for case-insensitive matching
+
+Run this one-time step after loading legacy data to stamp canonical lowercase/trimmed fields used by ER matching.
+
+```bash
+python scripts/run_cypher_file.py --target auradb --file cypher/00_backfill_canonical.cypher
+```
+
 ### Step 3: Run entity resolution queries on AuraDB
 
 ```bash
@@ -162,8 +170,8 @@ Then use `scripts/load_all.cypher` only for local Docker import (`file:///`).
 - Press `Ctrl+Enter` (Windows/Linux) or `Cmd+Enter` (macOS) to run the **whole file** against the active connection, or select a block of statements first to run only that block.
 - Results appear in the **Neo4j Query Results** panel.
 
-> **Tip:** each statement in a `.cypher` file is separated by a semicolon-less line break.  
-> The extension sends statements one at a time; multi-statement files work correctly.
+> **Tip:** keep a trailing semicolon (`;`) at the end of every Cypher statement.  
+> Both the VS Code workflow and Python helpers are safest with explicit semicolon-delimited statements in multi-statement files.
 
 ### 7.4 Run via the Python Helper (scripted / CI)
 
@@ -175,9 +183,19 @@ python scripts/run_cypher_file.py --target auradb --file cypher/01_constraints_i
 
 This is equivalent to running the file through the extension but returns structured output and exit codes suitable for CI pipelines.
 
-### 7.5 Recommended VS Code Settings (already committed)
+### 7.5 Recommended VS Code Settings (local workspace)
 
-`.vscode/settings.json` in this repo configures GitHub Copilot to use the Aura/GDS troubleshooting skill automatically — no extra setup needed.
+If your workflow excludes `.vscode/settings.json` from source control, create it locally in your workspace with the Copilot skill reference:
+
+```json
+{
+  "github.copilot.chat.codeGeneration.instructions": [
+    {
+      "file": "./.github/skills/aura-gds-troubleshooting/SKILL.md"
+    }
+  ]
+}
+```
 
 ## 8) Troubleshooting
 
@@ -195,6 +213,20 @@ These can appear before corresponding write steps create relationships/propertie
 
 5. Link prediction training fails with `Need at least one model candidate for training`:
 On very small demo graphs this is expected. The runner treats this as a non-fatal skip and continues with later GDS steps.
+
+6. Disconnected nodes/components appear in graph views:
+Expected by design in this sample dataset. Some records are intentionally only lightly connected (or disconnected from specific subdomains) so ER and integrity workflows can be tested across mixed connectivity patterns.
+
+7. Case-sensitive name/email matching misses expected candidates:
+Fix by re-running schema + canonical backfill, then re-running ER queries:
+
+```bash
+python scripts/run_cypher_file.py --target auradb --file cypher/01_constraints_indexes.cypher
+python scripts/run_cypher_file.py --target auradb --file cypher/00_backfill_canonical.cypher
+python scripts/run_cypher_file.py --target auradb --file cypher/03_entity_resolution_queries.cypher
+```
+
+For future writes/imports, always populate and match on canonical fields (`emailNormalized`, `firstNameNormalized`, `lastNameNormalized`) using `toLower(trim(...))`.
 
 ## 9) Compatibility Notes
 
