@@ -7,31 +7,55 @@ MERGE (r1:Researcher {researcherId: 'RES001'})
 SET
   r1.firstName = 'Sarah',
   r1.lastName = 'Chen',
+  r1.firstNameNormalized = toLower(trim('Sarah')),
+  r1.lastNameNormalized = toLower(trim('Chen')),
   r1.suffix = 'PhD',
   r1.orcidValue = '0000-0002-1234-5678';
 
 MERGE (r2:Researcher {researcherId: 'RES002'})
-SET r2.firstName = 'S.', r2.lastName = 'Chen', r2.suffix = 'Ph.D.';
+SET
+  r2.firstName = 'S.',
+  r2.lastName = 'Chen',
+  r2.firstNameNormalized = toLower(trim('S.')),
+  r2.lastNameNormalized = toLower(trim('Chen')),
+  r2.suffix = 'Ph.D.';
 
 MERGE (r3:Researcher {researcherId: 'RES003'})
-SET r3.firstName = 'Sarah', r3.lastName = 'Chen-Williams', r3.suffix = 'PhD';
+SET
+  r3.firstName = 'Sarah',
+  r3.lastName = 'Chen-Williams',
+  r3.firstNameNormalized = toLower(trim('Sarah')),
+  r3.lastNameNormalized = toLower(trim('Chen-Williams')),
+  r3.suffix = 'PhD';
 
 MERGE (r4:Researcher {researcherId: 'RES004'})
-SET r4.firstName = 'Marco', r4.lastName = 'Rossi', r4.suffix = 'MD PhD';
+SET
+  r4.firstName = 'Marco',
+  r4.lastName = 'Rossi',
+  r4.firstNameNormalized = toLower(trim('Marco')),
+  r4.lastNameNormalized = toLower(trim('Rossi')),
+  r4.suffix = 'MD PhD';
 
 MERGE (r5:Researcher {researcherId: 'RES005'})
-SET r5.firstName = 'M.', r5.lastName = 'Rossi';
+SET
+  r5.firstName = 'M.',
+  r5.lastName = 'Rossi',
+  r5.firstNameNormalized = toLower(trim('M.')),
+  r5.lastNameNormalized = toLower(trim('Rossi'));
 
 MERGE (r6:Researcher {researcherId: 'RES006'})
-SET r6.firstName = 'James', r6.lastName = 'Chen', r6.suffix = 'PhD';
+SET
+  r6.firstName = 'James',
+  r6.lastName = 'Chen',
+  r6.firstNameNormalized = toLower(trim('James')),
+  r6.lastNameNormalized = toLower(trim('Chen')),
+  r6.suffix = 'PhD';
 
 // Identifier nodes
-// MERGE on the canonical (lowercased, trimmed) property to prevent case-variant duplicates.
+// Email nodes MERGE on the canonical (lowercased, trimmed) property to prevent case-variant duplicates.
 // ON CREATE SET preserves the original casing for display.
-MERGE (orcid1:ORCID {orcidNormalized: toLower(trim('0000-0002-1234-5678'))})
-ON CREATE SET orcid1.value = '0000-0002-1234-5678';
-MERGE (orcid2:ORCID {orcidNormalized: toLower(trim('0000-0003-9876-5432'))})
-ON CREATE SET orcid2.value = '0000-0003-9876-5432';
+MERGE (orcid1:ORCID {value: '0000-0002-1234-5678'});
+MERGE (orcid2:ORCID {value: '0000-0003-9876-5432'});
 MERGE (email1:Email {emailNormalized: toLower(trim('sarah.chen@cambridgepharma.ac.uk'))})
 ON CREATE SET email1.address = 'sarah.chen@cambridgepharma.ac.uk';
 MERGE (email2:Email {emailNormalized: toLower(trim('s.chen@mit.edu'))})
@@ -41,13 +65,13 @@ ON CREATE SET email3.address = 'marco.rossi@karolinska.se';
 MERGE (email4:Email {emailNormalized: toLower(trim('j.chen@stanford.edu'))})
 ON CREATE SET email4.address = 'j.chen@stanford.edu';
 
-MATCH (r1:Researcher {researcherId: 'RES001'}), (orcid1:ORCID {orcidNormalized: toLower(trim('0000-0002-1234-5678'))})
+MATCH (r1:Researcher {researcherId: 'RES001'}), (orcid1:ORCID {value: '0000-0002-1234-5678'})
 MERGE (r1)-[:HAS_ORCID]->(orcid1);
 
-MATCH (r3:Researcher {researcherId: 'RES003'}), (orcid1:ORCID {orcidNormalized: toLower(trim('0000-0002-1234-5678'))})
+MATCH (r3:Researcher {researcherId: 'RES003'}), (orcid1:ORCID {value: '0000-0002-1234-5678'})
 MERGE (r3)-[:HAS_ORCID]->(orcid1);
 
-MATCH (r4:Researcher {researcherId: 'RES004'}), (orcid2:ORCID {orcidNormalized: toLower(trim('0000-0003-9876-5432'))})
+MATCH (r4:Researcher {researcherId: 'RES004'}), (orcid2:ORCID {value: '0000-0003-9876-5432'})
 MERGE (r4)-[:HAS_ORCID]->(orcid2);
 
 MATCH (r1:Researcher {researcherId: 'RES001'}), (email1:Email {emailNormalized: toLower(trim('sarah.chen@cambridgepharma.ac.uk'))})

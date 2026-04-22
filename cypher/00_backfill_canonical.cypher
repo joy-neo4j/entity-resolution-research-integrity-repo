@@ -1,5 +1,5 @@
 // One-time backfill: stamp canonical (lowercased, trimmed) properties onto
-// existing Email and ORCID nodes that pre-date the normalised write pattern.
+// existing nodes that pre-date the normalised write pattern.
 // Safe to re-run (SET is idempotent).
 
 // Backfill Email.emailNormalized from Email.address
@@ -8,8 +8,13 @@ WHERE e.emailNormalized IS NULL AND e.address IS NOT NULL
 SET e.emailNormalized = toLower(trim(e.address))
 RETURN count(e) AS emails_backfilled;
 
-// Backfill ORCID.orcidNormalized from ORCID.value
-MATCH (o:ORCID)
-WHERE o.orcidNormalized IS NULL AND o.value IS NOT NULL
-SET o.orcidNormalized = toLower(trim(o.value))
-RETURN count(o) AS orcids_backfilled;
+// Backfill Researcher.firstNameNormalized / lastNameNormalized
+MATCH (r:Researcher)
+WHERE r.firstNameNormalized IS NULL AND r.firstName IS NOT NULL
+SET r.firstNameNormalized = toLower(trim(r.firstName))
+RETURN count(r) AS first_names_backfilled;
+
+MATCH (r:Researcher)
+WHERE r.lastNameNormalized IS NULL AND r.lastName IS NOT NULL
+SET r.lastNameNormalized = toLower(trim(r.lastName))
+RETURN count(r) AS last_names_backfilled;

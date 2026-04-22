@@ -1,8 +1,9 @@
 // 4.1 Exact match by shared identifiers
-// Relies on write-time normalization: ORCID and Email nodes are MERGED on
-// orcidNormalized / emailNormalized (see 01_constraints_indexes.cypher and
-// 00_backfill_canonical.cypher), so two researchers sharing a node are
-// guaranteed to share the same case-folded identifier.
+// Relies on write-time normalization: Email nodes are MERGED on emailNormalized
+// (see 01_constraints_indexes.cypher and 00_backfill_canonical.cypher), so two
+// researchers sharing an Email node are guaranteed to share the same
+// case-folded address.  ORCID nodes use value directly (ORCIDs are structured
+// and do not have meaningful case variants).
 MATCH
   (r1:Researcher)-[:HAS_ORCID|HAS_EMAIL]->
   (shared)<-[:HAS_ORCID|HAS_EMAIL]-
@@ -25,8 +26,8 @@ WHERE r1.researcherId < r2.researcherId
 WITH
   r1,
   r2,
-  apoc.text.jaroWinklerDistance(toLower(r1.firstName), toLower(r2.firstName)) AS first_dist,
-  apoc.text.jaroWinklerDistance(toLower(r1.lastName), toLower(r2.lastName)) AS last_dist
+  apoc.text.jaroWinklerDistance(r1.firstNameNormalized, r2.firstNameNormalized) AS first_dist,
+  apoc.text.jaroWinklerDistance(r1.lastNameNormalized, r2.lastNameNormalized) AS last_dist
 WHERE first_dist < 0.50 OR last_dist < 0.25
 RETURN
   r1.researcherId AS id_1,
@@ -37,7 +38,7 @@ ORDER BY ln_score DESC, fn_score DESC;
 
 // 4.3 Candidate generation by similar names plus optional co-authorship evidence
 MATCH (r:Researcher)
-WITH toLower(r.lastName) AS lname, collect(r) AS researchers
+WITH r.lastNameNormalized AS lname, collect(r) AS researchers
 WHERE size(researchers) > 1
 UNWIND range(0, size(researchers) - 2) AS i
 UNWIND range(i + 1, size(researchers) - 1) AS j
@@ -47,7 +48,7 @@ WITH
   r1,
   r2,
   collect(p.doi) AS shared_papers,
-  apoc.text.jaroWinklerDistance(toLower(r1.firstName), toLower(r2.firstName)) AS fn_dist
+  apoc.text.jaroWinklerDistance(r1.firstNameNormalized, r2.firstNameNormalized) AS fn_dist
 WHERE fn_dist < 0.5 OR size(shared_papers) >= 1
 RETURN
   r1.researcherId AS id_1,
@@ -74,7 +75,7 @@ CALL () {
 
     UNION
   MATCH (r:Researcher)
-  WITH toLower(r.lastName) AS lname, collect(r) AS researchers
+  WITH r.lastNameNormalized AS lname, collect(r) AS researchers
   WHERE size(researchers) > 1
   UNWIND range(0, size(researchers) - 2) AS i
   UNWIND range(i + 1, size(researchers) - 1) AS j
@@ -84,8 +85,8 @@ WITH DISTINCT r1, r2
 WITH
   r1,
   r2,
-  apoc.text.jaroWinklerDistance(toLower(r1.firstName), toLower(r2.firstName)) AS fn_dist,
-  apoc.text.jaroWinklerDistance(toLower(r1.lastName), toLower(r2.lastName)) AS ln_dist
+  apoc.text.jaroWinklerDistance(r1.firstNameNormalized, r2.firstNameNormalized) AS fn_dist,
+  apoc.text.jaroWinklerDistance(r1.lastNameNormalized, r2.lastNameNormalized) AS ln_dist
 OPTIONAL MATCH (r1)-[:HAS_ORCID]->(o)<-[:HAS_ORCID]-(r2)
 WITH r1, r2, fn_dist, ln_dist, count(o) AS shared_orcids
 OPTIONAL MATCH (r1)-[:HAS_EMAIL]->(e)<-[:HAS_EMAIL]-(r2)
@@ -142,7 +143,7 @@ CALL () {
 
     UNION
   MATCH (r:Researcher)
-  WITH toLower(r.lastName) AS lname, collect(r) AS researchers
+  WITH r.lastNameNormalized AS lname, collect(r) AS researchers
   WHERE size(researchers) > 1
   UNWIND range(0, size(researchers) - 2) AS i
   UNWIND range(i + 1, size(researchers) - 1) AS j
@@ -152,8 +153,8 @@ WITH DISTINCT r1, r2
 WITH
   r1,
   r2,
-  apoc.text.jaroWinklerDistance(toLower(r1.firstName), toLower(r2.firstName)) AS fn_dist,
-  apoc.text.jaroWinklerDistance(toLower(r1.lastName), toLower(r2.lastName)) AS ln_dist
+  apoc.text.jaroWinklerDistance(r1.firstNameNormalized, r2.firstNameNormalized) AS fn_dist,
+  apoc.text.jaroWinklerDistance(r1.lastNameNormalized, r2.lastNameNormalized) AS ln_dist
 OPTIONAL MATCH (r1)-[:HAS_ORCID]->(o)<-[:HAS_ORCID]-(r2)
 WITH r1, r2, fn_dist, ln_dist, count(o) AS shared_orcids
 OPTIONAL MATCH (r1)-[:HAS_EMAIL]->(e)<-[:HAS_EMAIL]-(r2)

@@ -7,16 +7,11 @@ CREATE CONSTRAINT orcid_val IF NOT EXISTS
 FOR (o:ORCID)
 REQUIRE o.value IS UNIQUE;
 
-// Canonical (normalised) forms – the MERGE key for case-insensitive dedup
-CREATE CONSTRAINT orcid_normalized IF NOT EXISTS
-FOR (o:ORCID)
-REQUIRE o.orcidNormalized IS UNIQUE;
-
 CREATE CONSTRAINT email_addr IF NOT EXISTS
 FOR (e:Email)
 REQUIRE e.address IS UNIQUE;
 
-// Canonical (normalised) forms – the MERGE key for case-insensitive dedup
+// Canonical (normalised) form – the MERGE key for case-insensitive email dedup
 CREATE CONSTRAINT email_normalized IF NOT EXISTS
 FOR (e:Email)
 REQUIRE e.emailNormalized IS UNIQUE;
@@ -40,6 +35,13 @@ ON (r.lastName);
 CREATE INDEX res_firstname IF NOT EXISTS
 FOR (r:Researcher)
 ON (r.firstName);
+// Normalised name indexes – support fast lookup by canonical (lower-cased) name
+CREATE INDEX res_lastname_norm IF NOT EXISTS
+FOR (r:Researcher)
+ON (r.lastNameNormalized);
+CREATE INDEX res_firstname_norm IF NOT EXISTS
+FOR (r:Researcher)
+ON (r.firstNameNormalized);
 CREATE INDEX inst_name IF NOT EXISTS
 FOR (i:Institution)
 ON (i.name);
