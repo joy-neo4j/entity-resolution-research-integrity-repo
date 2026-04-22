@@ -16,3 +16,14 @@ venv*/
 .env
 .env.*
 !.env.example
+
+# VS Code workspace settings (keep shared Copilot config tracked)
+.vscode/
+!.vscode/settings.json
+*.code-workspace
+
+# JetBrains IDEs
+.idea/
+
+# macOS metadata
+.DS_Store

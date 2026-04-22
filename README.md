@@ -7,7 +7,8 @@ This repository implements entity resolution and research integrity workflows wi
 
 ## 1) Repository Layout
 
-- `cypher/01_constraints_indexes.cypher`: constraints and indexes
+- `cypher/00_backfill_canonical.cypher`: one-time backfill to stamp `emailNormalized`/`orcidNormalized` on existing nodes
+- `cypher/01_constraints_indexes.cypher`: constraints and indexes (including canonical-property uniqueness)
 - `cypher/02_sample_graph.cypher`: direct sample graph creation (no CSV)
 - `cypher/03_entity_resolution_queries.cypher`: ER candidate and scoring queries
 - `cypher/04_gds_workflows.cypher`: GDS workflow (WCC, FastRP+KNN, Link Prediction, Louvain, PageRank, Betweenness)
@@ -138,7 +139,47 @@ docker compose up -d
 
 Then use `scripts/load_all.cypher` only for local Docker import (`file:///`).
 
-## 7) Troubleshooting
+## 7) Running Cypher from VS Code against a Remote Aura Instance
+
+### 7.1 Install the Neo4j VS Code Extension
+
+1. Open the **Extensions** panel (`Ctrl+Shift+X` / `Cmd+Shift+X`).
+2. Search for **"Neo4j for VS Code"** (publisher: Neo4j Inc.) and install it.
+
+### 7.2 Add a Connection
+
+1. Click the **Neo4j** icon in the Activity Bar.
+2. Click **+ Add Connection** and fill in:
+   - **Connect URL**: your Aura Bolt URL, e.g. `neo4j+s://xxxxxxxx.databases.neo4j.io`  
+     (copy from the Aura console or `AURA_DB_URI` in your `.env`)
+   - **Username**: `neo4j`
+   - **Password**: your instance password (`AURA_DB_PASSWORD`)
+3. Click **Connect** — the connection turns green when live.
+
+### 7.3 Run a Cypher File
+
+- Open any `.cypher` file in this repo.
+- Press `Ctrl+Enter` (Windows/Linux) or `Cmd+Enter` (macOS) to run the **whole file** against the active connection, or select a block of statements first to run only that block.
+- Results appear in the **Neo4j Query Results** panel.
+
+> **Tip:** each statement in a `.cypher` file is separated by a semicolon-less line break.  
+> The extension sends statements one at a time; multi-statement files work correctly.
+
+### 7.4 Run via the Python Helper (scripted / CI)
+
+For automation or running files that contain multiple statements you still prefer to use the CLI helper:
+
+```bash
+python scripts/run_cypher_file.py --target auradb --file cypher/01_constraints_indexes.cypher
+```
+
+This is equivalent to running the file through the extension but returns structured output and exit codes suitable for CI pipelines.
+
+### 7.5 Recommended VS Code Settings (already committed)
+
+`.vscode/settings.json` in this repo configures GitHub Copilot to use the Aura/GDS troubleshooting skill automatically — no extra setup needed.
+
+## 8) Troubleshooting
 
 1. `ProcedureNotFound` for GDS procedures:
 Use `--target auradb-ga` with valid Aura API credentials or switch to AuraDS.
@@ -155,12 +196,12 @@ These can appear before corresponding write steps create relationships/propertie
 5. Link prediction training fails with `Need at least one model candidate for training`:
 On very small demo graphs this is expected. The runner treats this as a non-fatal skip and continues with later GDS steps.
 
-## 8) Compatibility Notes
+## 9) Compatibility Notes
 
 - `scripts/load_all.cypher` is not Aura-compatible (`file:///` usage).
 - `cypher/04_gds_workflows.cypher` uses native projection patterns to avoid `gds.graph.project.cypher` dependency.
 
-## 9) Linux Docker Workaround (Windows TLS/OAuth)
+## 10) Linux Docker Workaround (Windows TLS/OAuth)
 
 If Windows runtime hits `SSLEOFError` / OAuth handshake issues for `api.neo4j.io`, run inside a Linux container.
 

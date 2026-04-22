@@ -7,9 +7,19 @@ CREATE CONSTRAINT orcid_val IF NOT EXISTS
 FOR (o:ORCID)
 REQUIRE o.value IS UNIQUE;
 
+// Canonical (normalised) forms – the MERGE key for case-insensitive dedup
+CREATE CONSTRAINT orcid_normalized IF NOT EXISTS
+FOR (o:ORCID)
+REQUIRE o.orcidNormalized IS UNIQUE;
+
 CREATE CONSTRAINT email_addr IF NOT EXISTS
 FOR (e:Email)
 REQUIRE e.address IS UNIQUE;
+
+// Canonical (normalised) forms – the MERGE key for case-insensitive dedup
+CREATE CONSTRAINT email_normalized IF NOT EXISTS
+FOR (e:Email)
+REQUIRE e.emailNormalized IS UNIQUE;
 
 CREATE CONSTRAINT paper_doi IF NOT EXISTS
 FOR (p:Paper)

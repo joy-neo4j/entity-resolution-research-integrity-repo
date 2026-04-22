@@ -1,4 +1,8 @@
 // 4.1 Exact match by shared identifiers
+// Relies on write-time normalization: ORCID and Email nodes are MERGED on
+// orcidNormalized / emailNormalized (see 01_constraints_indexes.cypher and
+// 00_backfill_canonical.cypher), so two researchers sharing a node are
+// guaranteed to share the same case-folded identifier.
 MATCH
   (r1:Researcher)-[:HAS_ORCID|HAS_EMAIL]->
   (shared)<-[:HAS_ORCID|HAS_EMAIL]-
